@@ -199,7 +199,8 @@
      (sequence-first 1 #t ,unimplemented)
      (sequence-rest 1 #t ,unimplemented)
 
-     (make-pair 2 #t ,unimplemented)
+     (make-pair 2 #t ,(lambda (srator srand env) (shandle 
+                                                 (spair (shandle-h srator) (shandle-h srand)))))
      (make-rail false #t ,unimplemented)
      (make-closure 3 #t ,unimplemented);; To be finished: I don't know how closures are rep'd.
      (make-atom 1 #t ,unimplemented)
@@ -388,6 +389,11 @@
              (interp (spair (satom 'dn) (srail (list (shandle (satom 'x))))))))
 (check-equal? (interp (spair (satom 'dn) (srail (list (shandle (snumeral 6))))))
               (snumeral 6))
+
+(check-equal? (interp (spair (satom 'make-pair)
+                             (srail (list (shandle (satom 'zero))
+                                          (shandle (srail (list (snumeral 5))))))))
+              (shandle (spair (satom 'zero) (srail (list (snumeral 5))))))
 
 ;(check-equal? (interp (add-1 (num 1))) (num 2))
 ;(chk-exn (interp (id 'x)) "free identifier")
