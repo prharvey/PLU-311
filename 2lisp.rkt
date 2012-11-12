@@ -168,13 +168,13 @@
 
 (define (lookup x env) (env x))
 
-;; Primitive operators
+;; Primitive/native operators
   
 (define-struct primentry (name sig impl))
 ;; PrimEntry is (list Symbol (Number or #f) Boolean(Struct* ... Env -> Struct)) 
 ;; interp. An entry for a primitive interpreter operation
-;; (list name arg norm proc) gives the name of the operator, the number of args (#f for arbitrary,
-;; a boolean for whether the arguments should be pre-evaluated and
+;; (list name arg norm proc) gives the name of the operator, the number of args (#f for arbitrary),
+;; a boolean for whether the arguments should be pre-normalised and
 ;; a native function that implements it. 
 
 (define (unimplemented . a*)  (error 'reduce "primitive not implemented yet"))
@@ -191,7 +191,7 @@
      (sequence? 1 #t ,(lambda (s env) (sboolean (srail? s))))
      (empty? 1 #t ,(lambda (s env) (sboolean (and (srail? s) (zero? (length (srail-r s)))))))
 
-     (add1 1 #t ,unimplemented)
+     (add1 1 #t ,(lambda (s env) (snumeral (add1 (snumeral-n s)))))
      (sub1 1 #t ,unimplemented)
      (not 1 #t ,unimplemented)
      (sequence-first 1 #t ,unimplemented)
@@ -200,9 +200,12 @@
      (make-pair 2 #t ,(lambda (srator srand env) (shandle 
                                                  (spair (shandle-h srator) (shandle-h srand)))))
      (make-rail false #t ,unimplemented)
-     (make-closure 3 #t ,unimplemented);; To be finished: I don't know how closures are rep'd.
+     (make-closure 3 #t ,(lambda (shparams shbody senv env)
+                           (shandle (sclosure (shandle-h shparams)
+                                              (shandle-h shbody) 
+                                              (reflect-env senv env)))))
      (make-atom 1 #t ,unimplemented)
-     (quote 1 #t ,unimplemented) ;; but quote does not evalute its argument!
+     (quote 1 #f ,(lambda (s env) (shandle s))) ;;quote does not evalute its argument!
 
      (numeral? 1 #t ,unimplemented)
      (boolean? 1 #t ,unimplemented)
@@ -216,11 +219,11 @@
      (pair-snd 1 #t ,unimplemented)
      (rail-fst 1 #t ,unimplemented)
      (rail-rst 1 #t ,unimplemented)
-     (closure-params 1 #t ,unimplemented)
-     (closure-body 1 #t ,unimplemented)
-     (closure-env 1 #t ,unimplemented)
+     (closure-params 1 #t ,(lambda (sh env) (shandle (sclosure-params (shandle-h sh)))))
+     (closure-body 1 #t ,(lambda (sh env) (shandle (sclosure-body (shandle-h sh)))))
+     (closure-env 1 #t ,(lambda (sh env) (reify-env (sclosure-env (shandle-h sh)))))
 
-     (up 1 #t ,(lambda (s env) (shandle (normalize (shandle-h s)  env))))
+     (up 1 #t ,(lambda (s env) (shandle s)))
      (dn 1 #t ,(lambda  (s env) (if (normal? (shandle-h s))
                                     (shandle-h s)
                                     (error 'normalize "Cannot dn a non-normal structure"))))
@@ -291,7 +294,20 @@
     [satom (x) #f]
     [snative (name proc) #t]))
 
+;; Turn an environment into a native 2Lisp procedure
+;; Note that the environment takes a quoted atom name
+;; and returns a quoted version of its underlying structure
+(define (reify-env env)
+  (make-native-fn 'an-env 1 #t
+                  (lambda (s env^) (shandle (env (shandle-h s))))))
 
+;; Turn a 2Lisp procedure into an environment.  The procedure had better accept
+;; quoted atoms and return quoted normal structures (which we can unquote).
+;; reflect-env : (sclosure or snative) -> (satom -> struct)
+(define (reflect-env senv env)
+  (lambda (s) 
+    (shandle-h
+     (reduce senv (srail (list (shandle s))) env))))
 
 ;-----------------
 ;===== TESTS =====
@@ -380,9 +396,8 @@
 (check-equal? (interp (spair (satom 'function?) (srail (list (sboolean #t)))))
               (sboolean #f))
 (check-equal? (interp (spair (satom 'up) 
-                             (srail (list (shandle 
-                                           (spair (satom 'zero?)
-                                                  (srail (list (snumeral 0)))))))))
+                             (srail (list (spair (satom 'zero?)
+                                                  (srail (list (snumeral 0))))))))
               (shandle (sboolean #t)))
 (check-exn exn:fail? 
            ;; "Cannot dn a non-normal structure"
@@ -402,6 +417,40 @@
                              (srail (list (shandle (spair (satom 'f)
                                                           (srail (list (snumeral 7)))))))))
               (sboolean #t))
+
+(check-equal? (interp (spair (satom 'closure-params)
+                             (srail (list (spair (satom 'up) (srail (list id)))))))
+              (shandle (srail (list (satom 'x)))))
+(check-equal? (interp (spair (satom 'quote) (srail (list (snumeral 5)))))
+              (shandle (snumeral 5)))
+
+#;(interp (spair (satom 'make-closure)
+       (srail (list (shandle (srail (list (satom 'y))))
+                    (shandle (spair (satom 'add1) (srail (list (satom 'x))))) ;; '(add1 x)
+                    (spair (satom 'closure-env) 
+                           (srail (list (spair (satom 'up) (srail (list k))))))))))
+#;
+(spair
+ (spair (satom 'dn)
+  (srail (list
+    (spair (satom 'make-closure)
+      (srail (list 
+        (shandle (srail (list (satom 'y))))
+        (shandle (spair (satom 'add1) (srail (list (satom 'x))))) ;; '(add1 x)
+        (spair (satom 'closure-env) 
+          (srail (list 
+            (spair (satom 'up)
+              (srail (list 
+                (spair k (srail (list (snumeral 5))))))))))))))))
+ (srail (list (snumeral 30))))
+
+;(interp (spair (reify-env top-env) (srail (list (shandle (satom 'pair?))))))
+;(shandle (snative 'pair? #<procedure>))
+
+;((reflect-env (reify-env top-env) empty-env) (satom 'pair?))
+;(snative 'pair? #<procedure:...LU-311/2lisp.rkt:232:11>)
+
+
 ;(check-equal? (interp (add-1 (num 1))) (num 2))
 ;(chk-exn (interp (id 'x)) "free identifier")
 ;(check-equal? (interp (fun 'x (id 'x))) (fun 'x (id 'x)))
