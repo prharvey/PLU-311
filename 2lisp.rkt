@@ -177,8 +177,11 @@
 
 (define (unimplemented . a*)  (error 'reduce "primitive not implemented yet"))
 
+(define (lambda! params body env)
+      (sclosure params body env))
+
 (define PRIMOP-TABLE
-  `((lambda 2 #f ,unimplemented)
+  `((lambda 2 #f ,lambda!)
      (zero? 1 #t ,unimplemented)
      (number? 1 #t ,unimplemented)
      (truth-value? 1 #t ,unimplemented)
@@ -225,14 +228,11 @@
                    (apply proc (append (srail-r rail) env))
                    (proc rail env))))))
 
-;; fix this, it's stealing the function right off the bat
+;; the toplevel environment, with all the primitive operations
 (define top-env
   (extend-env (srail (map (lambda (e) (satom (car e))) PRIMOP-TABLE))
               (srail (map (lambda (e) (apply make-native-fn e)) PRIMOP-TABLE))
               empty-env))
-
-(define (primop? x) (assq x PRIMOP-TABLE)) 
-
 
 
 ;; for now
@@ -265,25 +265,14 @@
 
 ;; reduce: struct struct Env -> struct
 (define (reduce rator rand env)
-  (cond
-   [(and (satom? rator) (eq? (satom-a rator) 'lambda))
-    ;;(lambda . [[x ...] body])
-    ;; RG - add more checks later
-    ;; rand = [[x ...] body]
-    (let* ([parts (srail-r rand)]
-           [params (car parts)]
-           [body (cadr parts)])
-      (sclosure params body env))]
-   [(primop? rator) (error 'reduce "go away")]
-   [else
-    (let ([ratorv (normalize rator env)])
-      (cond 
-        [(sclosure? ratorv)
-         (let ([randv (normalize/rail rand env)])
-           (normalize (sclosure-body ratorv)
-                      (extend-env (sclosure-params ratorv) randv (sclosure-env ratorv))))]
-        [(snative? ratorv) ((snative-proc ratorv) rand env)]
-        [else (error "Attempted to apply a parameter to a non-function expression.")]))]))
+  (let ([ratorv (normalize rator env)])
+    (cond 
+      [(sclosure? ratorv)
+       (let ([randv (normalize/rail rand env)])
+         (normalize (sclosure-body ratorv)
+                    (extend-env (sclosure-params ratorv) randv (sclosure-env ratorv))))]
+      [(snative? ratorv) ((snative-proc ratorv) rand env)]
+      [else (error "Attempted to apply a parameter to a non-function expression.")])))
 
 ;-----------------
 ;===== TESTS =====
@@ -321,7 +310,6 @@
             [body (cadr parts)])
        ;; perhaps a bit too clever
        (unload (sclosure params body env) env))]
-    [(primop? rator) (error 'reduce "go away")]
     [else
      (spair (unload rator env) (unload rand env))]))
 
