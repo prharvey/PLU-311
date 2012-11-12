@@ -424,38 +424,34 @@
 (check-equal? (interp (spair (satom 'quote) (srail (list (snumeral 5)))))
               (shandle (snumeral 5)))
 
-#;(interp (spair (satom 'make-closure)
-       (srail (list (shandle (srail (list (satom 'y))))
-                    (shandle (spair (satom 'add1) (srail (list (satom 'x))))) ;; '(add1 x)
-                    (spair (satom 'closure-env) 
-                           (srail (list (spair (satom 'up) (srail (list k))))))))))
+(check-equal? (interp (spair (satom 'add1) (srail (list (snumeral 5)))))
+              (snumeral 6))
+;; Test is: ((dn (make-closure '[y] '(add1 x) (closure-env (up (k 5))))) 30)
+;; transforms function (k 5) up into a closure, steals its environment, builds a new closure, and 
+;; transforms that closure down into a function and calls it with 30.
 (check-equal? 
-(interp (spair
- (spair (satom 'dn)
-  (srail (list
-    (spair (satom 'make-closure)
-      (srail (list 
-        (shandle (srail (list (satom 'y))))
-        (shandle (spair (satom 'add1) (srail (list (satom 'x))))) ;; '(add1 x)
-        (spair (satom 'closure-env) 
-          (srail (list 
-            (spair (satom 'up)
-              (srail (list 
-                (spair k (srail (list (snumeral 5))))))))))))))))
- (srail (list (snumeral 30)))))
-(snumeral 6))
+ (local [(define (app s1 . s*) (spair s1 (srail s*)))]
+   (interp 
+    (app
+     (app (satom 'dn)
+          (app (satom 'make-closure)
+               (shandle (srail (list (satom 'y))))
+               (shandle (app (satom 'add1) (satom 'x))) ;; '(add1 x)
+               (app (satom 'closure-env) 
+                    (app (satom 'up)
+                         (app k (snumeral 5))))))
+     (snumeral 30))))
+   (snumeral 6))
 
-;(interp (spair (reify-env top-env) (srail (list (shandle (satom 'pair?))))))
-;(shandle (snative 'pair? #<procedure>))
+(check-exn exn:fail? (lambda () (interp (satom 'x))));;  "free identifier"
 
-;((reflect-env (reify-env top-env) empty-env) (satom 'pair?))
-;(snative 'pair? #<procedure:...LU-311/2lisp.rkt:232:11>)
-
-
-;(check-equal? (interp (add-1 (num 1))) (num 2))
-;(chk-exn (interp (id 'x)) "free identifier")
-;(check-equal? (interp (fun 'x (id 'x))) (fun 'x (id 'x)))
-;(check-equal? (interp (app (fun 'x (id 'x)) (num 2))) (num 2))
+(local [(define expr 
+          (spair (satom 'lambda)
+                 (srail (list 
+                         (srail (list (satom 'x)))
+                         (satom'x)))))]
+  (check-equal? (unload (interp expr) empty-env)
+                expr))
 
 ; More complicated tests
 ;(check-equal? (interp (fun 'x (num 5))) (fun 'x (num 5)))
