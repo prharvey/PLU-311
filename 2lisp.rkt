@@ -142,7 +142,7 @@
             (body struct?)
             (env procedure?)] 
   [srail (r (candmap struct?))]
-  [shandle (s struct?)]
+  [shandle (h struct?)]
   [spair (l struct?) (r struct?)]
   [satom (a symbol?)]
   [snative (name symbol?) (proc procedure?)])
@@ -218,8 +218,10 @@
      (rail-fst 1 #t ,unimplemented)
      (rail-rst 1 #t ,unimplemented)
 
-     (up 1 #t ,unimplemented)
-     (dn 1 #t ,unimplemented)
+     (up 1 #t ,(lambda (s env) (shandle (normalize (shandle-h s)  env))))
+     (dn 1 #t ,(lambda  (s env) (if (normal? (shandle-h s))
+                                    (shandle-h s)
+                                    (error 'normalize "Cannot dn a non-normal structure"))))
      (normalise 1 #t ,unimplemented)
      (reduce 2 #t ,unimplemented)))
 
@@ -274,6 +276,20 @@
                     (extend-env (sclosure-params ratorv) randv (sclosure-env ratorv))))]
       [(snative? ratorv) ((snative-proc ratorv) rand env)]
       [else (error "Attempted to apply a parameter to a non-function expression.")])))
+
+;; Is the given structure normal?
+(define (normal? s)
+  (type-case struct s
+    [snumeral (n) #t]
+    [sboolean (b) #t]
+    [sclosure (v b e) #t]
+    [srail (s*) (andmap normal? s*)]
+    [shandle (h) #t]
+    [spair (rator rand) #f]
+    [satom (x) #f]
+    [snative (name proc) #t]))
+
+
 
 ;-----------------
 ;===== TESTS =====
@@ -361,6 +377,18 @@
               (sboolean #t))
 (check-equal? (interp (spair (satom 'function?) (srail (list (sboolean #t)))))
               (sboolean #f))
+(check-equal? (interp (spair (satom 'up) 
+                             (srail (list (shandle 
+                                           (spair (satom 'zero?)
+                                                  (srail (list (snumeral 0)))))))))
+              (shandle (sboolean #t)))
+(check-exn exn:fail? 
+           ;; "Cannot dn a non-normal structure"
+           (lambda () 
+             (interp (spair (satom 'dn) (srail (list (shandle (satom 'x))))))))
+(check-equal? (interp (spair (satom 'dn) (srail (list (shandle (snumeral 6))))))
+              (snumeral 6))
+
 ;(check-equal? (interp (add-1 (num 1))) (num 2))
 ;(chk-exn (interp (id 'x)) "free identifier")
 ;(check-equal? (interp (fun 'x (id 'x))) (fun 'x (id 'x)))
