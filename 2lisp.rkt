@@ -134,10 +134,10 @@
 (define-type struct
   [snumeral (n number?)]
   [sboolean (b boolean?)]
-  [sclosure (v (lambda (x) 
+  [sclosure (params (lambda (x) 
                  (and (srail? x) (andmap satom? (srail-r x)))))
-            (b struct?)
-            (e procedure?)] 
+            (body struct?)
+            (env procedure?)] 
   [srail (r (candmap struct?))]
   [shandle (s struct?)]
   [spair (l struct?) (r struct?)]
@@ -261,8 +261,8 @@
     (let ([ratorv (normalize rator env)]
           [randv (normalize/rail rand env)])
       (if (sclosure? ratorv)
-          (normalize (sclosure-b ratorv)
-                     (extend-env (sclosure-v ratorv) randv env))
+          (normalize (sclosure-body ratorv)
+                     (extend-env (sclosure-params ratorv) randv (sclosure-env ratorv)))
           (error "Attempted to apply a parameter to a non-function expression.")))]))
 
 ;-----------------
