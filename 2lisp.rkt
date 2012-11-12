@@ -131,6 +131,9 @@
 
 ;; The internal structures, which are also the internal representation of the
 ;; language: struct plays the role that expr typically takes in an interpreter
+;; Added one new struct: snative for native code, which is a function that takes the current
+;; arguments and the environment.  As per Desrivieres,
+;; this is essentially level shifting, which is related to reflection.
 (define-type struct
   [snumeral (n number?)]
   [sboolean (b boolean?)]
@@ -141,63 +144,8 @@
   [srail (r (candmap struct?))]
   [shandle (s struct?)]
   [spair (l struct?) (r struct?)]
-  [satom (a symbol?)])
-
-
-;; Primitive operators
-  
-(define-struct primentry (name sig impl))
-;; PrimEntry is (make-primentry Sig Impl) where Sig is one of:
-;; - #f
-;; - Number
-;; interp. signature for a primitive operator
-;; where false indicates arbitrary number of arguments and a number is a strict
-;; number of arguments.
-
-(define (unimplemented . a*)  (error 'reduce "primitive not implemented yet"))
-
-(define PRIMOP-TABLE
-  (map
-   (lambda (e) (cons (car e) (apply make-primentry e)))
-   `((lambda 2 ,unimplemented)
-     (zero? 1 ,unimplemented)
-     (number? 1 ,unimplemented)
-     (truth-value? 1 ,unimplemented)
-     (function? 1 ,unimplemented)
-     (sequence? 1 ,unimplemented)
-     (empty? 1 ,unimplemented)
-
-     (add1 1 ,unimplemented)
-     (sub1 1 ,unimplemented)
-     (not 1 ,unimplemented)
-     (sequence-first 1 ,unimplemented)
-     (sequence-rest 1 ,unimplemented)
-
-     (make-pair 2 ,unimplemented)
-     (make-rail false ,unimplemented)
-     (make-closure 3 ,unimplemented);; To be finished: I don't know how closures are rep'd.
-     (make-atom 1 ,unimplemented)
-     (quote 1 ,unimplemented) ;; but quote does not evalute its argument!
-
-     (numeral? 1 ,unimplemented)
-     (boolean? 1 ,unimplemented)
-     (closure? 1 ,unimplemented)
-     (rail? 1 ,unimplemented)
-     (handle? 1 ,unimplemented)
-     (pair? 1 ,unimplemented)
-     (atom? 1 ,unimplemented)
-
-     (pair-fst 1 ,unimplemented)
-     (pair-snd 1 ,unimplemented)
-     (rail-fst 1 ,unimplemented)
-     (rail-rst 1 ,unimplemented)
-
-     (up 1 ,unimplemented)
-     (dn 1 ,unimplemented)
-     (normalise 1 ,unimplemented)
-     (reduce 2 ,unimplemented))))
-
-(define (primop? x) (assq x PRIMOP-TABLE)) 
+  [satom (a symbol?)]
+  [snative (name symbol?) (proc procedure?)])
 
 
 ;;
@@ -218,6 +166,75 @@
        [(assoc a alist) => cdr]
        [else (env a)]))))
 
+;; Primitive operators
+  
+(define-struct primentry (name sig impl))
+;; PrimEntry is (list Symbol (Number or #f) Boolean(Struct* ... Env -> Struct)) 
+;; interp. An entry for a primitive interpreter operation
+;; (list name arg norm proc) gives the name of the operator, the number of args (#f for arbitrary,
+;; a boolean for whether the arguments should be pre-evaluated and
+;; a native function that implements it. 
+
+(define (unimplemented . a*)  (error 'reduce "primitive not implemented yet"))
+
+(define PRIMOP-TABLE
+  `((lambda 2 #f ,unimplemented)
+     (zero? 1 #t ,unimplemented)
+     (number? 1 #t ,unimplemented)
+     (truth-value? 1 #t ,unimplemented)
+     (function? 1 #t ,unimplemented)
+     (sequence? 1 #t ,unimplemented)
+     (empty? 1 #t ,unimplemented)
+
+     (add1 1 #t ,unimplemented)
+     (sub1 1 #t ,unimplemented)
+     (not 1 #t ,unimplemented)
+     (sequence-first 1 #t ,unimplemented)
+     (sequence-rest 1 #t ,unimplemented)
+
+     (make-pair 2 #t ,unimplemented)
+     (make-rail false #t ,unimplemented)
+     (make-closure 3 #t ,unimplemented);; To be finished: I don't know how closures are rep'd.
+     (make-atom 1 #t ,unimplemented)
+     (quote 1 #t ,unimplemented) ;; but quote does not evalute its argument!
+
+     (numeral? 1 #t ,unimplemented)
+     (boolean? 1 #t ,unimplemented)
+     (closure? 1 #t ,unimplemented)
+     (rail? 1 #t ,unimplemented)
+     (handle? 1 #t ,unimplemented)
+     (pair? 1 #t ,unimplemented)
+     (atom? 1 #t ,unimplemented)
+
+     (pair-fst 1 #t ,unimplemented)
+     (pair-snd 1 #t ,unimplemented)
+     (rail-fst 1 #t ,unimplemented)
+     (rail-rst 1 #t ,unimplemented)
+
+     (up 1 #t ,unimplemented)
+     (dn 1 #t ,unimplemented)
+     (normalise 1 #t ,unimplemented)
+     (reduce 2 #t ,unimplemented)))
+
+(define (make-native-fn name args norm? proc)
+  (snative name
+           (lambda (rail env)
+             (let ([rail (if norm? (normalize/rail rail env) rail)])
+               (if (number? args)
+                   ;; could check args here!
+                   (apply proc (append (srail-r rail) env))
+                   (proc rail env))))))
+
+;; fix this, it's stealing the function right off the bat
+(define top-env
+  (extend-env (srail (map (lambda (e) (satom (car e))) PRIMOP-TABLE))
+              (srail (map (lambda (e) (apply make-native-fn e)) PRIMOP-TABLE))
+              empty-env))
+
+(define (primop? x) (assq x PRIMOP-TABLE)) 
+
+
+
 ;; for now
 (define (primop-lookup x) #f)
 
@@ -233,13 +250,14 @@
 ;; normalize : struct Env -> struct
 (define (normalize s env)
   (type-case struct s
-    [satom (x) (lookup (satom x) env)]
-    [spair (rator rand) (reduce rator rand env)]
+    [snumeral (n) s]
+    [sboolean (b) s]
+    [sclosure (v b e) s]
     [srail (s*) (normalize/rail s env)]
     [shandle (h) s]
-    [sclosure (v b e) s]
-    [snumeral (n) s]
-    [sboolean (b) s]))
+    [spair (rator rand) (reduce rator rand env)]
+    [satom (x) (lookup (satom x) env)]
+    [snative (name proc) s]))
 
 ;; normalize/rail : srail Env -> srail
 (define (normalize/rail s env)
@@ -258,12 +276,14 @@
       (sclosure params body env))]
    [(primop? rator) (error 'reduce "go away")]
    [else
-    (let ([ratorv (normalize rator env)]
-          [randv (normalize/rail rand env)])
-      (if (sclosure? ratorv)
-          (normalize (sclosure-body ratorv)
-                     (extend-env (sclosure-params ratorv) randv (sclosure-env ratorv)))
-          (error "Attempted to apply a parameter to a non-function expression.")))]))
+    (let ([ratorv (normalize rator env)])
+      (cond 
+        [(sclosure? ratorv)
+         (let ([randv (normalize/rail rand env)])
+           (normalize (sclosure-body ratorv)
+                      (extend-env (sclosure-params ratorv) randv (sclosure-env ratorv))))]
+        [(snative? ratorv) ((snative-proc ratorv) rand env)]
+        [else (error "Attempted to apply a parameter to a non-function expression.")]))]))
 
 ;-----------------
 ;===== TESTS =====
@@ -287,7 +307,8 @@
                                      p 
                                      (unload b (extend-env p p e)))))]
     [snumeral (n) s]
-    [sboolean (b) s]))
+    [sboolean (b) s]
+    [snative (name proc) s]))
 
 (define (unload/pair rator rand env)
   (cond
