@@ -166,6 +166,8 @@
        [(assoc a alist) => cdr]
        [else (env a)]))))
 
+(define (lookup x env) (env x))
+
 ;; Primitive operators
   
 (define-struct primentry (name sig impl))
@@ -182,12 +184,14 @@
 
 (define PRIMOP-TABLE
   `((lambda 2 #f ,lambda!)
-     (zero? 1 #t ,unimplemented)
-     (number? 1 #t ,unimplemented)
-     (truth-value? 1 #t ,unimplemented)
-     (function? 1 #t ,unimplemented)
-     (sequence? 1 #t ,unimplemented)
-     (empty? 1 #t ,unimplemented)
+     (zero? 1 #t ,(lambda (s env)
+                    (sboolean (and (snumeral? s) (zero? (snumeral-n s))))))
+     (number? 1 #t ,(lambda (s env) (sboolean (snumeral? s))))
+     (truth-value? 1 #t ,(lambda (s env) (sboolean (sboolean? s))))
+     (function? 1 #t ,(lambda (s env) 
+                        (sboolean (or (sclosure? s) (snative? s)))))
+     (sequence? 1 #t ,(lambda (s env) (sboolean (srail? s))))
+     (empty? 1 #t ,(lambda (s env) (sboolean (and (srail? s) (zero? (length (srail-r s)))))))
 
      (add1 1 #t ,unimplemented)
      (sub1 1 #t ,unimplemented)
@@ -225,7 +229,7 @@
              (let ([rail (if norm? (normalize/rail rail env) rail)])
                (if (number? args)
                    ;; could check args here!
-                   (apply proc (append (srail-r rail) env))
+                   (apply proc (append (srail-r rail) (list env)))
                    (proc rail env))))))
 
 ;; the toplevel environment, with all the primitive operations
@@ -235,16 +239,13 @@
               empty-env))
 
 
-;; for now
-(define (primop-lookup x) #f)
-
-(define (lookup x env)
-  (or (primop-lookup x)
-      (env x)))
+;;
+;; The Interpreter
+;;
 
 ;; interp : struct -> struct
 (define (interp s)
-  (normalize s empty-env))
+  (normalize s top-env))
 
 
 ;; normalize : struct Env -> struct
@@ -283,6 +284,14 @@
                           (srail (list (satom 'x))) 
                           (satom 'x)))))
 
+(define k (spair (satom 'lambda)
+                  (srail (list 
+                          (srail (list (satom 'x))) 
+                          (spair (satom 'lambda)
+                                 (srail (list 
+                                         (srail (list (satom 'y))) 
+                                         (satom 'x))))))))
+  
 ;; unload : struct -> struct
 ;; turn closures into substituted lambdas
 (define (unload s env)
@@ -324,7 +333,34 @@
 (check-equal? (interp (snumeral 1)) (snumeral 1))
 
 
-#;(check-equal? (interp id) #f)
+;(check-equal? (interp id) #f)
+(check-equal? (interp (spair id (srail (list (snumeral 2)))))
+              (snumeral 2))
+;(check-equal? (interp k) #f)
+(check-equal? (interp (spair (spair k (srail (list (snumeral 2)))) (srail (list (snumeral 3)))))
+              (snumeral 2))
+(check-equal? (interp (spair (satom 'zero?) (srail (list (snumeral 0)))))
+              (sboolean #t))
+(check-equal? (interp (spair (satom 'zero?) (srail (list (snumeral 7)))))
+              (sboolean #f))
+(check-equal? (interp (spair (satom 'zero?) (srail (list (sboolean #t)))))
+              (sboolean #f))
+(check-equal? (interp (spair (satom 'number?) (srail (list (snumeral 7)))))
+              (sboolean #t))
+(check-equal? (interp (spair (satom 'number?) (srail (list (sboolean #t)))))
+              (sboolean #f))
+(check-equal? (interp (srail (list (spair id (srail (list (snumeral 2))))
+                                   (spair (spair k (srail (list (snumeral 2))))
+                                          (srail (list (snumeral 3))))
+                                   (sboolean #t))))
+              (srail (list (snumeral 2) (snumeral 2) (sboolean #t))))
+
+(check-equal? (interp (spair (satom 'function?) (srail (list id))))
+              (sboolean #t))
+(check-equal? (interp (spair (satom 'function?) (srail (list (satom 'zero?)))))
+              (sboolean #t))
+(check-equal? (interp (spair (satom 'function?) (srail (list (sboolean #t)))))
+              (sboolean #f))
 ;(check-equal? (interp (add-1 (num 1))) (num 2))
 ;(chk-exn (interp (id 'x)) "free identifier")
 ;(check-equal? (interp (fun 'x (id 'x))) (fun 'x (id 'x)))
