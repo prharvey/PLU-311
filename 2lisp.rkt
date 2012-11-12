@@ -357,22 +357,22 @@
      (spair (unload rator env) (unload rand env))]))
 
 ;;; interp tests
-(define-syntax chk-exn
-  (syntax-rules ()
-    [(_ exp msg) (check-exn exn:fail? (lambda () exp) msg)]))
-
 (define tests 
   (test-suite "interp tests"
-; A few basic ones
+
 (check-equal? (interp (snumeral 1)) (snumeral 1))
 
+(check-equal? (unload (interp id) empty-env)
+              id)
 
-;(check-equal? (interp id) #f)
+(check-equal? (unload (interp k) empty-env)
+              k)
+
 (check-equal? (interp (spair id (srail (list (snumeral 2)))))
               (snumeral 2))
-;(check-equal? (interp k) #f)
 (check-equal? (interp (spair (spair k (srail (list (snumeral 2)))) (srail (list (snumeral 3)))))
               (snumeral 2))
+
 (check-equal? (interp (spair (satom 'zero?) (srail (list (snumeral 0)))))
               (sboolean #t))
 (check-equal? (interp (spair (satom 'zero?) (srail (list (snumeral 7)))))
@@ -445,13 +445,7 @@
 
 (check-exn exn:fail? (lambda () (interp (satom 'x))));;  "free identifier"
 
-(local [(define expr 
-          (spair (satom 'lambda)
-                 (srail (list 
-                         (srail (list (satom 'x)))
-                         (satom'x)))))]
-  (check-equal? (unload (interp expr) empty-env)
-                expr))
+
 
 ; More complicated tests
 ;(check-equal? (interp (fun 'x (num 5))) (fun 'x (num 5)))
