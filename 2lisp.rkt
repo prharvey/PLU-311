@@ -429,8 +429,8 @@
                     (shandle (spair (satom 'add1) (srail (list (satom 'x))))) ;; '(add1 x)
                     (spair (satom 'closure-env) 
                            (srail (list (spair (satom 'up) (srail (list k))))))))))
-#;
-(spair
+(check-equal? 
+(interp (spair
  (spair (satom 'dn)
   (srail (list
     (spair (satom 'make-closure)
@@ -442,7 +442,8 @@
             (spair (satom 'up)
               (srail (list 
                 (spair k (srail (list (snumeral 5))))))))))))))))
- (srail (list (snumeral 30))))
+ (srail (list (snumeral 30)))))
+(snumeral 6))
 
 ;(interp (spair (reify-env top-env) (srail (list (shandle (satom 'pair?))))))
 ;(shandle (snative 'pair? #<procedure>))
