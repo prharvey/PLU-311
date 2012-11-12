@@ -179,11 +179,9 @@
 
 (define (unimplemented . a*)  (error 'reduce "primitive not implemented yet"))
 
-(define (lambda! params body env)
-      (sclosure params body env))
 
 (define PRIMOP-TABLE
-  `((lambda 2 #f ,lambda!)
+  `((lambda 2 #f ,(lambda (params body env) (sclosure params body env)))
      (zero? 1 #t ,(lambda (s env)
                     (sboolean (and (snumeral? s) (zero? (snumeral-n s))))))
      (number? 1 #t ,(lambda (s env) (sboolean (snumeral? s))))
@@ -211,13 +209,16 @@
      (closure? 1 #t ,unimplemented)
      (rail? 1 #t ,unimplemented)
      (handle? 1 #t ,unimplemented)
-     (pair? 1 #t ,unimplemented)
+     (pair? 1 #t ,(lambda (s env) (sboolean (and (shandle? s) (spair? (shandle-h s))))))
      (atom? 1 #t ,unimplemented)
 
      (pair-fst 1 #t ,unimplemented)
      (pair-snd 1 #t ,unimplemented)
      (rail-fst 1 #t ,unimplemented)
      (rail-rst 1 #t ,unimplemented)
+     (closure-params 1 #t ,unimplemented)
+     (closure-body 1 #t ,unimplemented)
+     (closure-env 1 #t ,unimplemented)
 
      (up 1 #t ,(lambda (s env) (shandle (normalize (shandle-h s)  env))))
      (dn 1 #t ,(lambda  (s env) (if (normal? (shandle-h s))
@@ -395,6 +396,12 @@
                                           (shandle (srail (list (snumeral 5))))))))
               (shandle (spair (satom 'zero) (srail (list (snumeral 5))))))
 
+(check-equal? (interp (spair (satom 'pair?) (srail (list (snumeral 7)))))
+              (sboolean #f))
+(check-equal? (interp (spair (satom 'pair?) 
+                             (srail (list (shandle (spair (satom 'f)
+                                                          (srail (list (snumeral 7)))))))))
+              (sboolean #t))
 ;(check-equal? (interp (add-1 (num 1))) (num 2))
 ;(chk-exn (interp (id 'x)) "free identifier")
 ;(check-equal? (interp (fun 'x (id 'x))) (fun 'x (id 'x)))
