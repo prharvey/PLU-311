@@ -199,7 +199,8 @@
 
      (make-pair 2 #t ,(lambda (srator srand env) (shandle 
                                                  (spair (shandle-h srator) (shandle-h srand)))))
-     (make-rail false #t ,unimplemented)
+     (make-rail false #t ,(lambda (sr env)
+                            (shandle (srail (map shandle-h (srail-r sr))))))
      (make-closure 3 #t ,(lambda (shparams shbody senv env)
                            (shandle (sclosure (shandle-h shparams)
                                               (shandle-h shbody) 
@@ -430,6 +431,11 @@
               (snumeral 4))
 (check-equal? (interp (spair (satom 'not) (srail (list (sboolean #f)))))
               (sboolean #t))
+(check-equal? (interp (spair (satom 'make-rail)
+                             (srail (list (shandle (sboolean #f))
+                                          (shandle (snumeral 6))))))
+              (shandle (srail (list (sboolean #f) (snumeral 6)))))
+
 ;; test code: ((dn (make-closure '[y] '(add1 x) (closure-env (up (k 5))))) 30)
 ;; transforms function (k 5) up into a closure, steals its environment, builds a new closure, and 
 ;; transforms that closure down into a function and calls it with 30.
