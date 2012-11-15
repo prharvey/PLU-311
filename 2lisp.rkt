@@ -132,7 +132,7 @@
 ;; The internal structures, which are also the internal representation of the
 ;; language: struct plays the role that expr typically takes in an interpreter
 ;; Added one new struct: snative for native code, which is a function that takes the current
-;; arguments and the environment.  As per Desrivieres,
+;; arguments and the environment.  As per des Rivieres,
 ;; this is essentially level shifting, which is related to reflection.
 (define-type struct
   [snumeral (n number?)]
@@ -192,8 +192,8 @@
      (empty? 1 #t ,(lambda (s env) (sboolean (and (srail? s) (zero? (length (srail-r s)))))))
 
      (add1 1 #t ,(lambda (s env) (snumeral (add1 (snumeral-n s)))))
-     (sub1 1 #t ,unimplemented)
-     (not 1 #t ,unimplemented)
+     (sub1 1 #t ,(lambda (s env) (snumeral (sub1 (snumeral-n s)))))
+     (not 1 #t ,(lambda (s env) (sboolean (not (sboolean-b s)))))
      (sequence-first 1 #t ,unimplemented)
      (sequence-rest 1 #t ,unimplemented)
 
@@ -426,7 +426,11 @@
 
 (check-equal? (interp (spair (satom 'add1) (srail (list (snumeral 5)))))
               (snumeral 6))
-;; Test is: ((dn (make-closure '[y] '(add1 x) (closure-env (up (k 5))))) 30)
+(check-equal? (interp (spair (satom 'sub1) (srail (list (snumeral 5)))))
+              (snumeral 4))
+(check-equal? (interp (spair (satom 'not) (srail (list (sboolean #f)))))
+              (sboolean #t))
+;; test code: ((dn (make-closure '[y] '(add1 x) (closure-env (up (k 5))))) 30)
 ;; transforms function (k 5) up into a closure, steals its environment, builds a new closure, and 
 ;; transforms that closure down into a function and calls it with 30.
 (check-equal? 
