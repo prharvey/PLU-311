@@ -95,9 +95,8 @@
 
 ;; YOU'RE NOT ALLOWED TO REFER TO CATA VARS IN GUARDS. (reasonable!)
 
-(require (for-meta 1 racket))
-(require (for-meta 1 unstable/syntax))
-(require rnrs/mutable-pairs-6)
+(require (for-meta 1 racket)) ; to get some macro tools at meta-macro level
+(require rnrs/mutable-pairs-6) ; for set-cdr!
 
 (provide match)
 
@@ -220,16 +219,16 @@
     (syntax-case x ()
       ((_ Cata ((CVar CDepth CMyCata CFormal ...) ...) (ThreadedId ...) B)
        (with-syntax (((Mapper ...)
-                      (syntax-map (lambda (mycata formals depth)
+                      (map (lambda (mycata formals depth)
                              (build-mapper formals
                                (syntax->datum depth)
                                (syntax-case mycata ()
                                  (#f #'Cata)
                                  (exp #'exp))
                                #'(ThreadedId ...)))
-                        #'(CMyCata ...)
-                        #'((CFormal ...) ...)
-                        #'(CDepth ...))))
+                        (syntax->list #'(CMyCata ...))
+                        (syntax->list #'((CFormal ...) ...))
+                        (syntax->list #'(CDepth ...)))))
          #'(let-values** (((ThreadedId ... CFormal ...)
                            (Mapper ThreadedId ... CVar))
                           ...)
