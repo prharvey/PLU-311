@@ -154,6 +154,30 @@
   [snative (name symbol?) (proc procedure?)])
 
 
+;;
+;; Environments
+;;
+;; Env is satom -> struct
+
+;; empty-env : Env
+(define empty-env
+  (lambda (x)
+    (error (format "free identifier ~a" x))))
+
+;; extend-env : srail srail Env -> Env
+(define (extend-env p v env)
+  (let ([alist (map cons (srail-r p) (srail-r v))])	    
+    (lambda (a)
+      (cond
+       [(assoc a alist) => cdr]
+       [else (env a)]))))
+
+(define (lookup x env) (env x))
+
+;;
+;; Parsing - translate 2LISP Syntax to structural field syntax
+;;
+
 ; query syntax object to determine paren type
 ; rail-syn : syn-object -> boolean
 (define (rail-syn? syn-obj)
@@ -163,7 +187,7 @@
   (and (list? (syntax-e syn-obj))
        (not (rail-syn? syn-obj))))
 
-;; parser : syn-obj -> syn-object
+;; parser : syn-obj -> syn-obj
 (define (parse-syntax syn-obj)
   
   (let ((e (syntax-e syn-obj)))

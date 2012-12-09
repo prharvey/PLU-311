@@ -3,31 +3,12 @@
 (require rackunit)
 (require rackunit/text-ui)
 
-;(require (for-syntax "struct.rkt"))
 (require "struct.rkt")
 
 ;;
-;; Environments
-;;
-;; Env is satom -> struct
-
-;; empty-env : Env
-(define empty-env
-  (lambda (x)
-    (error (format "free identifier ~a" x))))
-
-;; extend-env : srail srail Env -> Env
-(define (extend-env p v env)
-  (let ([alist (map cons (srail-r p) (srail-r v))])	    
-    (lambda (a)
-      (cond
-       [(assoc a alist) => cdr]
-       [else (env a)]))))
-
-(define (lookup x env) (env x))
-
 ;; Primitive/native operators
-  
+;;
+
 (define-struct primentry (name sig impl))
 ;; PrimEntry is (list Symbol (Number or #f) Boolean(Struct* ... Env -> Struct)) 
 ;; interp. An entry for a primitive interpreter operation
@@ -231,22 +212,9 @@
 ;===== TESTS =====
 ;-----------------
 
-(define id (spair (satom 'lambda)
-                  (srail (list 
-                          (srail (list (satom 'x))) 
-                          (satom 'x)))))
+(define id #'(lambda [x] x))
 
-(define id2 #'(lambda [x] x))
-
-(define k (spair (satom 'lambda)
-                  (srail (list 
-                          (srail (list (satom 'x))) 
-                          (spair (satom 'lambda)
-                                 (srail (list 
-                                         (srail (list (satom 'y))) 
-                                         (satom 'x))))))))
-  
-(define k2 #'(lambda [x] (lambda [y] x)))
+(define k #'(lambda [x] (lambda [y] x)))
                           
 
 (define (ieq? l r)
@@ -258,9 +226,9 @@
   (test-suite "interp tests"
               
 (check ieq? (interp 1) #'1)
-(check ieq? (interp-2lisp id2) id2)
+(check ieq? (interp-2lisp id) id)
 
-(check ieq? (interp-2lisp k2) k2)
+(check ieq? (interp-2lisp k) k)
 
 (check ieq? (interp ((lambda [x] x) 2)) #'2)
 
@@ -286,73 +254,54 @@
 
 (check ieq? (interp (function? $t)) #'$f)
 
-(check-equal? (interp-struct (spair (satom 'up) 
-                             (srail (list (spair (satom 'zero?)
-                                                  (srail (list (snumeral 0))))))))
-              (shandle (sboolean #t)))
+(check ieq? (interp (up (zero? 0))) #''$t)
+
 (check-exn exn:fail? 
            ;; "Cannot dn a non-normal structure"
-           (lambda () 
-             (interp-struct (spair (satom 'dn) (srail (list (shandle (satom 'x))))))))
-(check-equal? (interp-struct (spair (satom 'dn) (srail (list (shandle (snumeral 6))))))
-              (snumeral 6))
+           (lambda () (interp (dn 'x))))
 
-(check-equal? (interp-struct (spair (satom 'make-pair)
-                             (srail (list (shandle (satom 'zero))
-                                          (shandle (srail (list (snumeral 5))))))))
-              (shandle (spair (satom 'zero) (srail (list (snumeral 5))))))
+(check ieq? (interp (dn '6)) #'6)
 
-(check-equal? (interp-struct (spair (satom 'pair?) (srail (list (snumeral 7)))))
-              (sboolean #f))
-(check-equal? (interp-struct (spair (satom 'pair?) 
-                             (srail (list (shandle (spair (satom 'f)
-                                                          (srail (list (snumeral 7)))))))))
-              (sboolean #t))
 
-(check-equal? (interp-struct (spair (satom 'closure-params)
-                             (srail (list (spair (satom 'up) (srail (list id)))))))
-              (shandle (srail (list (satom 'x)))))
-(check-equal? (interp-struct (spair (satom 'quote) (srail (list (snumeral 5)))))
-              (shandle (snumeral 5)))
+(check ieq? (interp (make-pair 'zero '[5])) #''(zero 5))
 
-(check-equal? (interp-struct (spair (satom 'add1) (srail (list (snumeral 5)))))
-              (snumeral 6))
-(check-equal? (interp-struct (spair (satom 'sub1) (srail (list (snumeral 5)))))
-              (snumeral 4))
-(check-equal? (interp-struct (spair (satom 'not) (srail (list (sboolean #f)))))
-              (sboolean #t))
-(check-equal? (interp-struct (spair (satom 'make-rail)
-                             (srail (list (shandle (sboolean #f))
-                                          (shandle (snumeral 6))))))
-              (shandle (srail (list (sboolean #f) (snumeral 6)))))
+(check ieq? (interp (pair? 7)) #'$f)
 
-;; test code: ((dn (make-closure '[y] '(add1 x) (closure-env (up (k 5))))) 30)
+(check ieq? (interp (pair? '(f 7))) #'$t)
+
+(check ieq? (interp (closure-params (up (lambda [x] x)))) #''[x])
+
+(check ieq? (interp '5) #''5)
+
+(check ieq? (interp (add1 5)) #'6)
+
+(check ieq? (interp (sub1 5)) #'4)
+
+(check ieq? (interp (not $f)) #'$t)
+
+(check ieq? (interp (make-rail '$f '6)) #''[$f 6])
+
+
+;; Fancy metastructural test:
 ;; transforms function (k 5) up into a closure, steals its environment, builds a new closure, and 
 ;; transforms that closure down into a function and calls it with 30.
-(check-equal? 
- (local [(define (app s1 . s*) (spair s1 (srail s*)))]
-   (interp-struct 
-    (app
-     (app (satom 'dn)
-          (app (satom 'make-closure)
-               (shandle (srail (list (satom 'y))))
-               (shandle (app (satom 'add1) (satom 'x))) ;; '(add1 x)
-               (app (satom 'closure-env) 
-                    (app (satom 'up)
-                         (app k (snumeral 5))))))
-     (snumeral 30))))
-   (snumeral 6))
+(check ieq? (interp ((dn (make-closure '[y] '(add1 x)
+                          (closure-env (up ((lambda [x] (lambda [y] x)) 5))))) 30))
+       #'6)
 
-(check-exn exn:fail? (lambda () (interp-struct (satom 'x))));;  "free identifier"
+(check-exn exn:fail? ;;  "free identifier"
+           (lambda () (interp x)))
 
 
+(check ieq? (interp (lambda [x] 5)) #'(lambda [x] 5))
 
-; More complicated tests
-;(check-equal? (interp (fun 'x (num 5))) (fun 'x (num 5)))
-;(check-equal? (interp (app (fun 'x (num 5)) (num 2))) (num 5))
-;(chk-exn (interp (app (fun 'x (id 'y)) (num 2))) "free identifier")
-;(check-equal? (interp (app (fun 'x (id 'x)) (add-1 (num 2)))) (num 3))
+(check ieq? (interp ((lambda [x] 5) 2)) #'5)
+
+(check-exn exn:fail? '' "free identifier"
+           (lambda () (interp ((lambda [x] y) 2))))
+
+(check ieq? (interp ((lambda [x] x) (add1 2))) #'3)
 
 )); define tests
 
-(run-tests interp-tests)
+;(run-tests interp-tests)
