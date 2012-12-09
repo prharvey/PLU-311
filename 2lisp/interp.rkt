@@ -1,10 +1,4 @@
-#lang plai
-
-(require rackunit)
-(require rackunit/text-ui)
-
-(require "struct.rkt")
-
+#lang racket
 
 ;; interp.rkt :  2LISP: The interpreter
 ;; Part of an interpreter for the 2LISP Language of Brian Cantwell Smith
@@ -12,7 +6,14 @@
 ;; Ron Garcia
 ;; Zach Drudi
 
+(require (only-in plai define-type type-case)
+         "struct.rkt")
 
+(provide (except-out (all-defined-out)))
+
+;; Run test cases if this module is run directly
+(module+ main 
+         (require rackunit rackunit/text-ui))
 
 
 ;;
@@ -221,18 +222,18 @@
 ;-----------------
 ;===== TESTS =====
 ;-----------------
+(module+ main
 
 (define id #'(lambda [x] x))
-
 (define k #'(lambda [x] (lambda [y] x)))
                           
-
+;; compare an interpreted 2Lisp struct to 2Lisp syntax
 (define (ieq? l r)
   (equal? (unload l empty-env)
           (2lisp->struct r)))
 
 ;;; interp tests
-(define interp-tests 
+(define tests 
   (test-suite "interp tests"
               
 (check ieq? (interp 1) #'1)
@@ -313,5 +314,4 @@
 (check ieq? (interp ((lambda [x] x) (add1 2))) #'3)
 
 )); define tests
-
-;(run-tests interp-tests)
+(run-tests tests))

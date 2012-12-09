@@ -1,7 +1,13 @@
-#lang plai
+#lang racket
 
-(require rackunit)
-(require rackunit/text-ui)
+(require (only-in plai define-type type-case))
+
+(provide (except-out (all-defined-out) 
+                     candmap rail-syn? list-syn?))
+
+;; Run test cases if this module is run directly
+(module+ main 
+         (require rackunit rackunit/text-ui))
 
 
 ;; struct.rkt :  2LISP: The structural field
@@ -229,10 +235,10 @@
 
 
 ;; Test Suite
-
-(define (syn-eq? a b) (equal? (syntax->datum a) (syntax->datum b)))
-  
-(define tests
+(module+ 
+ main
+ (define (syn-eq? a b) (equal? (syntax->datum a) (syntax->datum b)))
+ (define tests
   (test-suite "parser tests"
     (check syn-eq? (parse-syntax #'1) #'(snumeral 1))
   
@@ -262,7 +268,6 @@
     
     (check-exn exn:fail? (lambda () (parse-syntax #'(quote . 2))))
     (check-exn exn:fail? (lambda () (parse-syntax #'(quote 2 3))))
-    
-)) ; define tests
-
-;(run-tests tests)
+    )) ; define tests
+ 
+ (run-tests tests))
