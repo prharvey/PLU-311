@@ -174,20 +174,25 @@
      (reduce senv (srail (list (shandle s))) env))))
 
 
+;;
+;; Interfaces to the 2Lisp Parser
+;;
+
 (define (2lisp->struct stx)
-  (eval (syntax->datum (parse-syntax stx))))
+  (eval-syntax (parse-syntax stx)))
 
-(define-syntax (parse x)
-  (syntax-case x ()
-    [(_ exp) #'(2lisp->struct #'exp)]))
-
-
-(define-syntax interp
-  (syntax-rules () 
-    [(interp e) (interp-struct (parse e))]))
+(define-syntax parse
+  (syntax-rules ()
+    [(_ e) (2lisp->struct #'e)]))
 
 (define (interp-2lisp s)
   (interp-struct (2lisp->struct s)))
+
+(define-syntax interp
+  (syntax-rules () 
+    [(interp e) (interp-2lisp #'e)]))
+
+
 
 
 
@@ -197,7 +202,7 @@
   (type-case struct s
     [satom (x) (lookup (satom x) env)]
     [spair (rator rand) (unload/pair rator rand env)]
-    [srail (s*) (srail (map (lambda (s) (unload s env)) (srail-r s*)))]
+    [srail (s*) (srail (map (lambda (s) (unload s env)) s*))]
     [shandle (h) s]
     [sclosure (p b e) (spair (satom 'lambda)
                              (srail (list
@@ -230,6 +235,7 @@
                   (srail (list 
                           (srail (list (satom 'x))) 
                           (satom 'x)))))
+
 (define id2 #'(lambda [x] x))
 
 (define k (spair (satom 'lambda)
@@ -243,56 +249,43 @@
 (define k2 #'(lambda [x] (lambda [y] x)))
                           
 
+(define (ieq? l r)
+  (equal? (unload l empty-env)
+          (2lisp->struct r)))
+
 ;;; interp tests
 (define interp-tests 
   (test-suite "interp tests"
+              
+(check ieq? (interp 1) #'1)
+(check ieq? (interp-2lisp id2) id2)
 
-(check-equal? (interp 1) (snumeral 1))
+(check ieq? (interp-2lisp k2) k2)
 
-(check-equal? (unload (interp-struct id) empty-env)
-              id)
+(check ieq? (interp ((lambda [x] x) 2)) #'2)
 
-(check-equal? (unload (interp-2lisp id2) empty-env)
-              (2lisp->struct id2))
+(check ieq? (interp (((lambda [x] (lambda [y] x)) 2) 3)) #'2)
 
+(check ieq? (interp (if $f 5 6)) #'6)
 
-(check-equal? (unload (interp-struct k) empty-env)
-              k)
+(check ieq? (interp (zero? 0)) #'$t)
 
-(check-equal? (interp-struct (spair id (srail (list (snumeral 2)))))
-              (snumeral 2))
-(check-equal? (interp-struct (spair (spair k (srail (list (snumeral 2)))) (srail (list (snumeral 3)))))
-              (snumeral 2))
-(check-equal? (interp-struct (spair (satom 'if)
-                             (srail (list (sboolean #t) (snumeral 5) (snumeral 6)))))
-              (snumeral 5))
+(check ieq? (interp (zero? 7)) #'$f)
 
-(check-equal? (interp-struct (spair (satom 'if)
-                             (srail (list (sboolean #f) (snumeral 5) (snumeral 6)))))
-              (snumeral 6))
+(check ieq? (interp (zero? $t)) #'$f)
 
-(check-equal? (interp-struct (spair (satom 'zero?) (srail (list (snumeral 0)))))
-              (sboolean #t))
-(check-equal? (interp-struct (spair (satom 'zero?) (srail (list (snumeral 7)))))
-              (sboolean #f))
-(check-equal? (interp-struct (spair (satom 'zero?) (srail (list (sboolean #t)))))
-              (sboolean #f))
-(check-equal? (interp-struct (spair (satom 'number?) (srail (list (snumeral 7)))))
-              (sboolean #t))
-(check-equal? (interp-struct (spair (satom 'number?) (srail (list (sboolean #t)))))
-              (sboolean #f))
-(check-equal? (interp-struct (srail (list (spair id (srail (list (snumeral 2))))
-                                   (spair (spair k (srail (list (snumeral 2))))
-                                          (srail (list (snumeral 3))))
-                                   (sboolean #t))))
-              (srail (list (snumeral 2) (snumeral 2) (sboolean #t))))
+(check ieq? (interp (number? 7)) #'$t)
 
-(check-equal? (interp-struct (spair (satom 'function?) (srail (list id))))
-              (sboolean #t))
-(check-equal? (interp-struct (spair (satom 'function?) (srail (list (satom 'zero?)))))
-              (sboolean #t))
-(check-equal? (interp-struct (spair (satom 'function?) (srail (list (sboolean #t)))))
-              (sboolean #f))
+(check ieq? (interp (number? $t)) #'$f)
+
+(check ieq? (interp [((lambda [x] x) 2) (((lambda [x] (lambda [y] x)) 2) 3) $t]) #'[2 2 $t])
+       
+(check ieq? (interp (function? (lambda [x] x))) #'$t)
+
+(check ieq? (interp (function? zero?)) #'$t)
+
+(check ieq? (interp (function? $t)) #'$f)
+
 (check-equal? (interp-struct (spair (satom 'up) 
                              (srail (list (spair (satom 'zero?)
                                                   (srail (list (snumeral 0))))))))
@@ -362,4 +355,4 @@
 
 )); define tests
 
-;(run-tests interp-tests)
+(run-tests interp-tests)
