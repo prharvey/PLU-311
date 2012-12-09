@@ -230,9 +230,9 @@
     (closure-env 1 #t ,(lambda (sh env) (reify-env (sclosure-env (shandle-h sh)))))
     
     (up 1 #t ,(lambda (s env) (shandle s)))
-    (dn 1 #t ,(lambda  (s env) (if (normal? (shandle-h s))
-                                   (shandle-h s)
-                                   (error 'normalize "Cannot dn a non-normal structure"))))
+    (dn 1 #t ,(lambda (s env) (if (normal? (shandle-h s))
+                                  (shandle-h s)
+                                  (error 'normalize "Cannot dn a non-normal structure"))))
     (normalise 1 #t ,unimplemented)
     (reduce 2 #t ,unimplemented)))
 
