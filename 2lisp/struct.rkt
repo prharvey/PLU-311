@@ -163,75 +163,77 @@
   (and (list? (syntax-e syn-obj))
        (not (rail-syn? syn-obj))))
 
-;; parser : syn-obj -> struct
+;; parser : syn-obj -> syn-object
 (define (parse-syntax syn-obj)
   
   (let ((e (syntax-e syn-obj)))
    (cond [(or (eq? e '$t) (eq? e '$T))
-          (sboolean #t)]
+          #'(sboolean #t)]
          [(or (eq? e '$f) (eq? e '$F))
-          (sboolean #f)]
+          #'(sboolean #f)]
          [(boolean? e) ;; support Scheme Booleans as well as 2-Lisp Booleans
-          (sboolean e)]
+          #`(sboolean #,syn-obj)]
          [(number? e)
-          (snumeral e)]
+          #`(snumeral #,syn-obj)]
          [(symbol? e)
-          (satom e)]
+          #`(satom (quote #,syn-obj))]
          [(list? e) 
           (cond 
             [(rail-syn? syn-obj)
-             (srail (map parse-syntax e))]
+             #`(srail (list #,@(map parse-syntax e)))]
             [(equal? (syntax-e (first e)) 'quote)
              (if (eq? (length (rest e)) 1)
-                 (shandle (parse-syntax (first (rest e))))
+                 #`(shandle #,(parse-syntax (first (rest e))))
                  (error "parse error" e))]
             ; otherwise we deal with pairs
             ; pairs have the structure: (a . b)
             ;    (a b1 b2 b3 ... bn) is an abbreviation for:
             ;    (a [b1 b2 b3 ... bn])
             [else
-             (spair (parse-syntax (first e))
-                    (srail (map parse-syntax (rest e))))])]
+             #`(spair #,(parse-syntax (first e))
+                    (srail (list #,@(map parse-syntax (rest e)))))])]
          [(and (pair? e) 
                (not (eq? (syntax-e (car e)) 'quote))
                (not (rail-syn? syn-obj)))
           ; This case is to handle things like:
           ; (+ . [1])
           ; A square-bracketed, like [1 . 2] is an error
-          (spair (parse-syntax (car e))
-                 (parse-syntax (cdr e)))]
+          #`(spair #,(parse-syntax (car e))
+                   #,(parse-syntax (cdr e)))]
          [else
           (error "parse error" e)])))
 
 
 ;; Test Suite
 
+(define (syn-eq? a b) (equal? (syntax->datum a) (syntax->datum b)))
+  
 (define tests
   (test-suite "parser tests"
-    (check-equal? (parse-syntax #'1) (snumeral 1))
+    (check syn-eq? (parse-syntax #'1) #'(snumeral 1))
   
-    (check-equal? (parse-syntax #'x) (satom 'x))
-    (check-equal? (parse-syntax #'$t) (sboolean #t))
-    (check-equal? (parse-syntax #'$T) (sboolean #t))
-    (check-equal? (parse-syntax #'$F) (sboolean #f))
-    (check-equal? (parse-syntax #'$f) (sboolean #f))
-    (check-equal? (parse-syntax #'[1 $t x]) (srail (list (snumeral 1)
+    (check syn-eq? (parse-syntax #'x) #'(satom 'x))
+    (check syn-eq? (parse-syntax #'$t) #'(sboolean #t))
+    (check syn-eq? (parse-syntax #'$T) #'(sboolean #t))
+    (check syn-eq? (parse-syntax #'$F) #'(sboolean #f))
+    (check syn-eq? (parse-syntax #'$f) #'(sboolean #f))
+    (check syn-eq? (parse-syntax #'[1 $t x]) #'(srail (list (snumeral 1)
                                                          (sboolean #t)
                                                          (satom 'x))))
-    (check-equal? (parse-syntax #'(1)) (spair (snumeral 1)
-                                              (srail '())))
-    (check-equal? (parse-syntax #'(foo bar)) (spair (satom 'foo)
+    (check syn-eq? (parse-syntax #'(1)) #'(spair (snumeral 1)
+                                              (srail (list))))
+    (check syn-eq? (parse-syntax #'(foo bar)) #'(spair (satom 'foo)
                                                     (srail (list (satom 'bar)))))
-    (check-equal? (parse-syntax #'(foo 1 2 3 4)) (spair (satom 'foo)
+    (check syn-eq? (parse-syntax #'(foo 1 2 3 4)) #'(spair (satom 'foo)
                                                         (srail (list (snumeral 1)
                                                                      (snumeral 2)
                                                                      (snumeral 3)
                                                                      (snumeral 4)))))
-    (check-equal? (parse-syntax #''q) (shandle (satom 'q)))
-    (check-equal? (parse-syntax #''1) (shandle (snumeral 1)))
-    (check-equal? (parse-syntax #''[1 2]) (shandle (srail (list (snumeral 1)
+    (check syn-eq? (parse-syntax #''q) #'(shandle (satom 'q)))
+    (check syn-eq? (parse-syntax #''1) #'(shandle (snumeral 1)))
+    (check syn-eq? (parse-syntax #''[1 2]) #'(shandle (srail (list (snumeral 1)
                                                                 (snumeral 2)))))
-    (check-equal? (parse-syntax #'(a . [b])) (spair (satom 'a)
+    (check syn-eq? (parse-syntax #'(a . [b])) #'(spair (satom 'a)
                                                     (srail (list (satom 'b)))))
     
     (check-exn exn:fail? (lambda () (parse-syntax #'(quote . 2))))

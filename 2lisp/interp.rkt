@@ -3,7 +3,7 @@
 (require rackunit)
 (require rackunit/text-ui)
 
-(require (for-syntax "struct.rkt"))
+;(require (for-syntax "struct.rkt"))
 (require "struct.rkt")
 
 ;;
@@ -115,7 +115,7 @@
 ;;
 
 ;; interp : struct -> struct
-(define (interp s)
+(define (interp-struct s)
   (normalize s top-env))
 
 
@@ -174,9 +174,22 @@
      (reduce senv (srail (list (shandle s))) env))))
 
 
+(define (2lisp->struct stx)
+  (eval (syntax->datum (parse-syntax stx))))
+
 (define-syntax (parse x)
   (syntax-case x ()
-    [(_ exp) (datum->syntax x (parse-syntax #'exp))]))
+    [(_ exp) #'(2lisp->struct #'exp)]))
+
+
+(define-syntax interp
+  (syntax-rules () 
+    [(interp e) (interp-struct (parse e))]))
+
+(define (interp-2lisp s)
+  (interp-struct (2lisp->struct s)))
+
+
 
 ;; unload : struct -> struct
 ;; turn closures into substituted lambdas
@@ -234,84 +247,88 @@
 (define interp-tests 
   (test-suite "interp tests"
 
-(check-equal? (interp (snumeral 1)) (snumeral 1))
+(check-equal? (interp 1) (snumeral 1))
 
-(check-equal? (unload (interp id) empty-env)
+(check-equal? (unload (interp-struct id) empty-env)
               id)
 
-(check-equal? (unload (interp k) empty-env)
+(check-equal? (unload (interp-2lisp id2) empty-env)
+              (2lisp->struct id2))
+
+
+(check-equal? (unload (interp-struct k) empty-env)
               k)
 
-(check-equal? (interp (spair id (srail (list (snumeral 2)))))
+(check-equal? (interp-struct (spair id (srail (list (snumeral 2)))))
               (snumeral 2))
-(check-equal? (interp (spair (spair k (srail (list (snumeral 2)))) (srail (list (snumeral 3)))))
+(check-equal? (interp-struct (spair (spair k (srail (list (snumeral 2)))) (srail (list (snumeral 3)))))
               (snumeral 2))
-(check-equal? (interp (spair (satom 'if)
+(check-equal? (interp-struct (spair (satom 'if)
                              (srail (list (sboolean #t) (snumeral 5) (snumeral 6)))))
               (snumeral 5))
 
-(check-equal? (interp (spair (satom 'if)
+(check-equal? (interp-struct (spair (satom 'if)
                              (srail (list (sboolean #f) (snumeral 5) (snumeral 6)))))
               (snumeral 6))
 
-(check-equal? (interp (spair (satom 'zero?) (srail (list (snumeral 0)))))
+(check-equal? (interp-struct (spair (satom 'zero?) (srail (list (snumeral 0)))))
               (sboolean #t))
-(check-equal? (interp (spair (satom 'zero?) (srail (list (snumeral 7)))))
+(check-equal? (interp-struct (spair (satom 'zero?) (srail (list (snumeral 7)))))
               (sboolean #f))
-(check-equal? (interp (spair (satom 'zero?) (srail (list (sboolean #t)))))
+(check-equal? (interp-struct (spair (satom 'zero?) (srail (list (sboolean #t)))))
               (sboolean #f))
-(check-equal? (interp (spair (satom 'number?) (srail (list (snumeral 7)))))
+(check-equal? (interp-struct (spair (satom 'number?) (srail (list (snumeral 7)))))
               (sboolean #t))
-(check-equal? (interp (spair (satom 'number?) (srail (list (sboolean #t)))))
+(check-equal? (interp-struct (spair (satom 'number?) (srail (list (sboolean #t)))))
               (sboolean #f))
-(check-equal? (interp (srail (list (spair id (srail (list (snumeral 2))))
+(check-equal? (interp-struct (srail (list (spair id (srail (list (snumeral 2))))
                                    (spair (spair k (srail (list (snumeral 2))))
                                           (srail (list (snumeral 3))))
                                    (sboolean #t))))
               (srail (list (snumeral 2) (snumeral 2) (sboolean #t))))
 
-(check-equal? (interp (spair (satom 'function?) (srail (list id))))
+(check-equal? (interp-struct (spair (satom 'function?) (srail (list id))))
               (sboolean #t))
-(check-equal? (interp (spair (satom 'function?) (srail (list (satom 'zero?)))))
+(check-equal? (interp-struct (spair (satom 'function?) (srail (list (satom 'zero?)))))
               (sboolean #t))
-(check-equal? (interp (spair (satom 'function?) (srail (list (sboolean #t)))))
+(check-equal? (interp-struct (spair (satom 'function?) (srail (list (sboolean #t)))))
               (sboolean #f))
-(check-equal? (interp (spair (satom 'up) 
+(check-equal? (interp-struct (spair (satom 'up) 
                              (srail (list (spair (satom 'zero?)
                                                   (srail (list (snumeral 0))))))))
               (shandle (sboolean #t)))
 (check-exn exn:fail? 
            ;; "Cannot dn a non-normal structure"
            (lambda () 
-             (interp (spair (satom 'dn) (srail (list (shandle (satom 'x))))))))
-(check-equal? (interp (spair (satom 'dn) (srail (list (shandle (snumeral 6))))))
+             (interp-struct (spair (satom 'dn) (srail (list (shandle (satom 'x))))))))
+(check-equal? (interp-struct (spair (satom 'dn) (srail (list (shandle (snumeral 6))))))
               (snumeral 6))
 
-(check-equal? (interp (spair (satom 'make-pair)
+(check-equal? (interp-struct (spair (satom 'make-pair)
                              (srail (list (shandle (satom 'zero))
                                           (shandle (srail (list (snumeral 5))))))))
               (shandle (spair (satom 'zero) (srail (list (snumeral 5))))))
 
-(check-equal? (interp (spair (satom 'pair?) (srail (list (snumeral 7)))))
+(check-equal? (interp-struct (spair (satom 'pair?) (srail (list (snumeral 7)))))
               (sboolean #f))
-(check-equal? (interp (spair (satom 'pair?) 
+(check-equal? (interp-struct (spair (satom 'pair?) 
                              (srail (list (shandle (spair (satom 'f)
                                                           (srail (list (snumeral 7)))))))))
               (sboolean #t))
 
-(check-equal? (interp (spair (satom 'closure-params)
+(check-equal? (interp-struct (spair (satom 'closure-params)
                              (srail (list (spair (satom 'up) (srail (list id)))))))
               (shandle (srail (list (satom 'x)))))
-(check-equal? (interp (spair (satom 'quote) (srail (list (snumeral 5)))))
+(check-equal? (interp-struct (spair (satom 'quote) (srail (list (snumeral 5)))))
               (shandle (snumeral 5)))
 
-(check-equal? (interp (spair (satom 'add1) (srail (list (snumeral 5)))))
+(check-equal? (interp-struct (spair (satom 'add1) (srail (list (snumeral 5)))))
               (snumeral 6))
-(check-equal? (interp (spair (satom 'sub1) (srail (list (snumeral 5)))))
+(check-equal? (interp-struct (spair (satom 'sub1) (srail (list (snumeral 5)))))
               (snumeral 4))
-(check-equal? (interp (spair (satom 'not) (srail (list (sboolean #f)))))
+(check-equal? (interp-struct (spair (satom 'not) (srail (list (sboolean #f)))))
               (sboolean #t))
-(check-equal? (interp (spair (satom 'make-rail)
+(check-equal? (interp-struct (spair (satom 'make-rail)
                              (srail (list (shandle (sboolean #f))
                                           (shandle (snumeral 6))))))
               (shandle (srail (list (sboolean #f) (snumeral 6)))))
@@ -321,7 +338,7 @@
 ;; transforms that closure down into a function and calls it with 30.
 (check-equal? 
  (local [(define (app s1 . s*) (spair s1 (srail s*)))]
-   (interp 
+   (interp-struct 
     (app
      (app (satom 'dn)
           (app (satom 'make-closure)
@@ -333,7 +350,7 @@
      (snumeral 30))))
    (snumeral 6))
 
-(check-exn exn:fail? (lambda () (interp (satom 'x))));;  "free identifier"
+(check-exn exn:fail? (lambda () (interp-struct (satom 'x))));;  "free identifier"
 
 
 
@@ -345,4 +362,4 @@
 
 )); define tests
 
-(run-tests interp-tests)
+;(run-tests interp-tests)
