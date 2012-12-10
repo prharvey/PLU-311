@@ -268,8 +268,8 @@
 (check ieq? (interp (up (zero? 0))) #''$t)
 
 (check-exn exn:fail? 
-           ;; "Cannot dn a non-normal structure"
-           (lambda () (interp (dn 'x))))
+           (lambda () (interp (dn 'x)))
+           "Cannot dn a non-normal structure")
 
 (check ieq? (interp (dn '6)) #'6)
 
@@ -300,16 +300,18 @@
                           (closure-env (up ((lambda [x] (lambda [y] x)) 5))))) 30))
        #'6)
 
-(check-exn exn:fail? ;;  "free identifier"
-           (lambda () (interp x)))
+(check-exn exn:fail?
+           (lambda () (interp x))
+           "free identifier")
 
 
 (check ieq? (interp (lambda [x] 5)) #'(lambda [x] 5))
 
 (check ieq? (interp ((lambda [x] 5) 2)) #'5)
 
-(check-exn exn:fail? '' "free identifier"
-           (lambda () (interp ((lambda [x] y) 2))))
+(check-exn exn:fail?
+           (lambda () (interp ((lambda [x] y) 2)))
+           "free identifier")
 
 (check ieq? (interp ((lambda [x] x) (add1 2))) #'3)
 

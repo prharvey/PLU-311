@@ -266,8 +266,12 @@
     (check syn-eq? (parse-syntax #'(a . [b])) #'(spair (satom 'a)
                                                     (srail (list (satom 'b)))))
     
-    (check-exn exn:fail? (lambda () (parse-syntax #'(quote . 2))))
-    (check-exn exn:fail? (lambda () (parse-syntax #'(quote 2 3))))
+    (check-exn exn:fail?
+               (lambda () (parse-syntax #'(quote . 2)))
+               "quote is special syntax")
+    (check-exn exn:fail?
+               (lambda () (parse-syntax #'(quote 2 3)))
+               "quote is special syntax")
     )) ; define tests
  
  (run-tests tests))
