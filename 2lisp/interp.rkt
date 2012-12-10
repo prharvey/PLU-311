@@ -6,8 +6,8 @@
 ;; Ron Garcia
 ;; Zach Drudi
 
-(require (only-in plai define-type type-case)
-         "struct.rkt")
+(require plai/datatype)
+(require "struct.rkt")
 
 (provide (except-out (all-defined-out)))
 

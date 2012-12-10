@@ -1,6 +1,6 @@
 #lang racket
 
-(require (only-in plai define-type type-case))
+(require plai/datatype)
 
 (provide (except-out (all-defined-out) 
                      candmap rail-syn? list-syn?))
