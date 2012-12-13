@@ -3,14 +3,16 @@
 --newtype K a = K ((a -> Answer) -> Answer)
 
 -- Base monad stuff
-newtype M a 	= Id a
+data M a 	= Success a | Error String
 
 instance Monad M where
-	return x = Id x
-	(Id x) >>= f = f x
+	return x = Success x
+	(>>=) (Success x) f = f x
+	(>>=) (Error s) f = Error s
 
 instance (Show a) => Show (M a) where
-	show (Id v) = show v
+	show (Success v) = "Success: " ++ show v
+	show (Error s) 	= "Error: " ++ s
 
 {-instance (Show a) => Show (K a) where
 	show (K x) = show (x id)-}
@@ -72,7 +74,7 @@ interp (Callcc x v) e = callccK (\k -> interp v ((x, Fun k):e))
 
 apply				:: Value -> Value -> K
 apply (Fun f) v c	= (f v) c
-apply f a c 		= return Wrong
+apply f a c			= Error $ "should be a function: " ++ show f
 
 test 				:: Term -> String
 test t				= showK (interp t [])
@@ -80,12 +82,13 @@ test t				= showK (interp t [])
 find 				:: Name -> Environment -> K
 find el l 			= 	case ans of
 							Just val -> unitK val
-							Nothing  -> unitK Wrong
+							Nothing  -> promoteK $ Error $ "unbound variable: " ++ el
 				where ans = lookup el l
 
 add 			 	:: Value -> Value -> K
 add (Num i) (Num j) c 	= c (Num $ i + j)
-add a b c 			= return Wrong
+add a b c 			= Error $ "should be numbers: " ++ show a
+								++ ", " ++ show b
 
 -- Tests ------------
 term1 				= Add (Con 1) (Con 2)
@@ -95,4 +98,5 @@ term3 				= Add term1 term1
 term4 				= (Con 1)
 term5				= Add (Con 1) (Callcc "k" (Add (Con 10) (App (Var "k") (Con 4))))
 term6				= App (Lam ("x") (Callcc "k" (Var "k")))
-						(Var "y")
+						(Con 1)
+term7				= Add term1 (Lam ("x") (Var "x"))
