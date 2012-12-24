@@ -304,7 +304,7 @@
          (ellipsis? #'Dots)
          (syntax-case syn (unquote ->)
            (((unquote (MyCata -> Var ...)) Dots)
-            (andmap Var? #'(Var ...))
+            (andmap Var? (syntax->list #'(Var ...)))
             (with-syntax (((Temp) (generate-temporaries '(x)))
                           (Depth+1 (add1 depth)))
               (values #'each-any
@@ -312,7 +312,7 @@
                       guards
                       (cons #'(Temp Depth+1 MyCata Var ...) cdecls))))
            (((unquote (Var ...)) Dots)
-            (andmap Var? #'(Var ...))
+            (andmap Var? (syntax->list #'(Var ...)))
             (with-syntax (((Temp) (generate-temporaries '(x)))
                           (Depth+1 (add1 depth)))
               (values #'each-any
@@ -388,7 +388,7 @@
       ((_ F (RetId ...) (ThreadId ...))
        (with-syntax (((t ...) (generate-temporaries #'(RetId ...)))
                      ((ts ...) (generate-temporaries #'(RetId ...)))
-                     ((null ...) (map (lambda (x) #''()) #'(RetId ...))))
+                     ((null ...) (map (lambda (x) #''()) (syntax->list #'(RetId ...)))))
          #'(let ((fun F))
              (letrec
                  ((g (lambda (ThreadId ... ls)
